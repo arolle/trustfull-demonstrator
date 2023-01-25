@@ -12,19 +12,27 @@
 }
 </style>
 
+{% with csrf_token_str = csrf_token() %}
 <div class="card-group">
     <div class="card">
         <div class="card-body">
-            {% with messages = get_flashed_messages() %}
+            {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <div class="alert alert-danger">
-                    {{ messages[0] }}
-                </div>
+              <ul>
+              {% for category, message in messages %}
+                <li class="alert alert-danger">{{ category }}: {{ message }}</li>
+              {% endfor %}
+              </ul>
             {% endif %}
             {% endwith %}
+            <h1>Electronig Voting in three steps</h1>
+            {% if not hash and not signature %} <details open> {% else %} <details> {% endif %}
+            <summary><h2>1. Cast vote and request signing</h2></summary>
             <form action="/" method="POST" onsubmit="return captureForm()">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <input type="hidden" name="csrf_token" value="{{ csrf_token_str }}" />
+                <!--
                 <h2 class="card-title">{{ data.question }}</h2>
+                -->
                 <ul class="list-group list-group-flush">
                     <div class="card-header">Candidates</div>
                     {% for e in data.fields %}
@@ -39,30 +47,35 @@
                     <input required type="email" class="form-control" name="email-for-signing" id="email-for-signing" placeholder="Enter email">
                 </ul>
                 <div class="card-body">
-                    <button type="submit" class="btn btn-primary">Vote</button>
-                    <a href="/results" class="btn btn-primary">Results</a>
-                    <a
-                        href="/offline_vote"
-                        class="btn btn-secondary"
-                        data-toggle="tooltip"
-                        data-placement="top"
-                        title="Cast a vote when FrejaEID is offline"
-                    >
-                        Offline vote
-                    </a>
-                    <a href="/ciphertexts" class="btn btn-secondary">Ciphertexts</a>
-                    <a href="/publicKey" class="btn btn-secondary">Public Key</a>
+                    <button type="submit" class="btn btn-primary">Cast vote and request signing</button>
                 </div>
             </form>
-        </div>
-        {% if hash %}
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title font-weight-bold">Verify hash values</h5>
-                <p class="card-text">{{ hash }}</p>
+            </details>
+            {% if hash and not signature %} <details open> {% else %} <details> {% endif %}
+              <summary><h2>2. Compare hash and sign on second device</h2></summary>
+            {% if hash %}
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title font-weight-bold">Verify hash values with signing application</h5>
+                    <p class="card-text">{{ hash }}</p>
+                </div>
             </div>
+            {% else %}
+            <p>nothing to sign yet</p>
+            {% endif %}
+            </details>
+            {% if signature %} <details open> {% else %} <details> {% endif %}
+            <summary><h2>3. Submit vote</h2></summary>
+            <input id="signature" type="hidden" value="{{ signature }}" />
+            <form action="/vote_submission" method="POST" onsubmit="setBallot()">
+              {% if signature %} {% else %} <p>sign the vote first</p> {% endif %}
+              <input type="hidden" name="csrf_token" value="{{ csrf_token_str }}" />
+              <p class="card-text">{{ hash }}</p>
+              <input id="ballot" type="hidden" name="ballot" value="a" />
+              <button type="submit" class="btn btn-primary">submit your ballot</button>
+            </form>
+            </details>
         </div>
-        {% endif %}
         {% if vote %}
           <details><summary>Raw signature and encrypted vote</summary>
             <textarea readonly>{{ vote }}</textarea>
@@ -70,6 +83,10 @@
         {% endif %}
         <div class="card-footer text-primary">
             {{ stats.nvotes }} vote{{ '' if stats.nvotes == 1 else 's' }} so far
+            <a href="/results" class="btn btn-secondary">Results</a>
+            <a href="#" class="btn btn-secondary" onclick="setOfflineVote()" data-toggle="tooltip" data-placement="top" title="Cast a vote when FrejaEID is offline">JS: set offline vote</a>
+            <a href="/ciphertexts" class="btn btn-secondary">Ciphertexts</a>
+            <a href="/publicKey" class="btn btn-secondary">Public Key</a>
         </div>
     </div>
     <div class="card">
@@ -95,6 +112,7 @@
         </div>
     </div>
 </div>
+{% endwith %}
 <div class="alert alert-success" id="success" {% if not show_success %} style="display: none;" {% endif %}>
     <strong>Success!</strong> Thank you for submitting your vote.
 </div>
@@ -108,19 +126,51 @@
         window.success.className += ' hidden';
     }, 1000);
 
+    // This version does not export hexbyte and byteArrayToHex
+    // source Verificatum-TS
+    function hexbyte(b) {
+        const digits = "0123456789abcdef";
+        return digits[b >> 4 & 0xF] + digits[b & 0xF];
+    }
+    function byteArrayToHex(bytes) {
+        let hexString = "";
+        for (i = 0; i < bytes.length; i++) {
+            hexString += hexbyte(bytes[i]);
+        }
+        return hexString;
+    }
+
     function captureForm() {
         for (const candidate of document.getElementsByClassName('candidate')) {
             if (candidate.checked) {
+              console.log("entered captureForm");
                 var found = false;
                 {% for e in data.fields %}
                 found |= candidate.value === "{{ e }}";
                 {% endfor %}
                 if (!found) {
-                    console.error("Candidate does not much any expected value");
+                    console.error("Candidate does not match any expected value");
                     return false;
                 }
 
-                document.getElementById(candidate.value).value = encrypt(candidate.value);
+/*
+                Future version API
+                // hash : uint8_t[]
+                // sha256 : uint8_t[] -> uint8_t[]
+                const sha256 = new verificatum.crypto.SHA256();
+                const hash = sha256.hash(enc_vote);
+*/
+
+                const enc_vote = encrypt(candidate.value);
+                const enc_vote_ba = enc_vote.toByteArray();
+                const hash = verificatum.crypto.sha256.hash(enc_vote_ba)
+                console.log("setting enc vote (hash): " + byteArrayToHex(hash));
+                document.getElementById(candidate.value).value = byteArrayToHex(hash);
+
+                const enc_vote_hex_str = byteArrayToHex(enc_vote.toByteArray());
+                localStorage.setItem("enc_vote", enc_vote_hex_str);
+                console.log("localStorage.enc_vote (hex): " + enc_vote_hex_str);
+
                 return true;
             }
         }
@@ -156,9 +206,30 @@
 
         // XXX: why?
         // In format expected by VMN
-        const encrypted0 = encrypted.values[0].toByteTree().toByteArray();
-        const encrypted1 = encrypted.values[1].toByteTree().toByteArray();
-        return JSON.stringify([encrypted0, encrypted1]);
+        const encrypted0 = encrypted.values[0].toByteTree();
+        const encrypted1 = encrypted.values[1].toByteTree();
+
+        const ByteTree = verificatum.eio.ByteTree;
+        const enc_vote_bt = new ByteTree([encrypted0,encrypted1]);
+        return enc_vote_bt;
+        // return JSON.stringify([encrypted0, encrypted1]);
     }
+
+  function setBallot() {
+    const enc_vote = localStorage.getItem('enc_vote');
+    const signature = document.getElementById('signature').value;
+    if (!enc_vote || !signature) {
+      return false;
+    }
+    console.log({"vote": enc_vote, "signature": signature });
+    document.getElementById('ballot').value = JSON.stringify({"vote": enc_vote, "signature": signature });
+    return true;
+  }
+
+function setOfflineVote() {
+  localStorage.setItem('enc_vote',"000000000200000000020100000021004582f66416a80946526186470c12784a34a9eae8b12df74d7b60f89c2087b7c501000000210047d031d945b4609017a83d569b661cc651a863c88631b2f3038a24a1da61240800000000020100000021000ad727ceb7dc79469a6c43f4ecc9ba85b712acde58cd06b7df568717ef2bb0ff010000002100849391d58bd9707011776836eb2e63819aed978b0cb54e1e3ca76889ad2a09ed");
+  document.getElementById('signature').value = "eyJ4NXQiOiJEaVpiekJmeXNVbTYtSXdJLUd0aWVuRXNiamMiLCJhbGciOiJSUzI1NiJ9.eyJzaWduUmVmIjoibGxpYzd0X1lBRFc2ZWdfZXBxYnU4VDA3OFpWWU41amZWX19vOEgxakNYbElCRHMyaXR5c3hMaUpuMFNKY01pWSIsInN0YXR1cyI6IkFQUFJPVkVEIiwidGltZXN0YW1wIjoxNjk1OTAwODk4NzQzLCJtaW5SZWdpc3RyYXRpb25MZXZlbCI6IkJBU0lDIiwic2lnbmF0dXJlVHlwZSI6IlNJTVBMRSIsInNpZ25hdHVyZURhdGEiOnsidXNlclNpZ25hdHVyZSI6ImV5SnJhV1FpT2lKQ1JEQkJOa1pFUmtReU9VVXhPRUkyTVRCQlJFWXpOakkyTVRsRk5qQTFOVVE1TlVGRlFVSTNSRFkwT1RFME5VUkVPVGs1UmpCRlFUUTNPVGswUVRkR0lpd2lZV3huSWpvaVVsTXlOVFlpZlEuT0RSaVl5QmxObVEwSURBNU5qY2dNelF3TmlCallUZGxJRFJrWkRFZ016Y3dZeUE0WXpJMklHVXdaV1VnTXpZeE5TQTJPVGc0SURSaE9HSWdNbVUzTUNBMll6QmhJREl4TkdVZ1pEWXhOdy5teTRkaWVVaEV6bGNzbkplYmx5RWVDZUdXVUVGUzJMUlBSTlpid1c3N1I1eEU2NmtNWm8xWXdHZldTeGlzSlNWZFhneU84aU5RQVh1dEhYX1F4ai01eHFhY3J6NU5Bd05UWm5wcHB4emJweTFrNHlNR0RnZFdjNW1DM3R5elhMOWVqR1hUck5KTW5XeXczc3JFeGhaT1JrMm1HWXdFeDlmcXo4T2NNbkRQZGVyOERDTk9UNXU0R08zUVVMOEtUTjFVTTRVWVhud1hBR2lsQ0NFUjRjVHhVWmxCSUJDd24xWGhzSHFJcHhxazBvZzU5TU0yYUxtdGdZdUR2djhESUQ5ZUpveWpLQjBMVjJWMzRXWUZtX0VKN21kSDRPbEJRbTgtMm1QN3NaYmswNnZ4bGNaTUhXNU1EWk1MRDNNWmw5VVpkMmRoVk1DY2pOOFYwMDBtTExHTmciLCJjZXJ0aWZpY2F0ZVN0YXR1cyI6Ik1JSUdYZ29CQUtDQ0JsY3dnZ1pUQmdrckJnRUZCUWN3QVFFRWdnWkVNSUlHUURDQ0FRT2lGZ1FVMWlsK0djVkhVTDZHQUhiYklkb25BNHY4bG13WUR6SXdNak13T1RJNE1URXpORFU0V2pDQnJ6Q0JyRENCbGpBTkJnbGdoa2dCWlFNRUFnRUZBQVFnTFhzcklFa0JYYVZRbnZGby9HSXJMaFZOYVFaakhlN3lsR2NTWkV4UkU0OEVJQ2RCTG56cGc2V1U4V21SbGZHdURkTTFWcjFhWTZnM0tZZjl3SmFDT0gyeUFrRUF0NFY0WmFwa3RmSTllTGV0dGMwakdwNmNCeEdLdDJxRjhOZ000REJUcE5ZOEE2ZWZXbGlYeVhaYWdrdHlBeVhQVXhsaWlqSTBCQnRjWjRoak0ydFBRb0FBR0E4eU1ESXpNRGt5T0RFeE16UTFPRnFoSmpBa01DSUdDU3NHQVFVRkJ6QUJBZ1FWQkJNd0xqUTBOakk1TlRFeU1EVTVOall6TlRNME1BMEdDU3FHU0liM0RRRUJDd1VBQTRJQkFRRHBrTG1wOGdqL2dqeDFKWDgvOGhEU2FsaUIzWllMNXFyYmR0Rk9IWXF5UTk1MWdqWjRTWmRDcjI5QTNHTjVVWW5rSVdXaVNsL1BNQlQ3K2g5VEFLNzdGem5PNDNTZXFiR3gyakV0VGcxMmVDT3BJSTJKMHhJV2I0QVY2dU5aVE14eG5XVEwvOXNRcTdmZ243Z0xZZmYySmVEZG03dUhOVDE2T09FZFkvS1J6TjRaS1d1ZkNZNmVtWGZJSHpIWWk2eTNINGRkZjBERXZWQkVibGJsODNQcmdJU1RYc28zTGc5cWdYVmlmMmVpZ3JSd0pDN3VTeWdSQUFkVll4eE8xaUw3TGkyZ3RXaFl4TDhKYk5OQTA2SUZUOUtQaVorVFJRTGt5V25heXBUS2NKbWhtKzNIaHZ1L2pNZ1FoQUM1aEZYZXlKaDVjRkpJQzltaCtJVWVMUDh0b0lJRUlUQ0NCQjB3Z2dRWk1JSURBYUFEQWdFQ0FoUkpubTI5TElYS1hzVm9FYnhreEYxczloVTVhVEFOQmdrcWhraUc5dzBCQVFzRkFEQ0JnekVMTUFrR0ExVUVCaE1DVTBVeEVqQVFCZ05WQkFjVENWTjBiMk5yYUc5c2JURVVNQklHQTFVRVlSTUxOVFU1TVRFd0xUUTRNRFl4SFRBYkJnTlZCQW9URkZabGNtbHpaV01nUm5KbGFtRWdaVWxFSUVGQ01RMHdDd1lEVlFRTEV3UlVaWE4wTVJ3d0dnWURWUVFERXhOU1UwRWdWRVZUVkNCSmMzTjFhVzVuSUVOQk1CNFhEVEl3TVRJd09ERXpNVFV4TWxvWERUSXpNVEl3T0RFek1UVXhNbG93ZkRFTE1Ba0dBMVVFQmhNQ1UwVXhFakFRQmdOVkJBY1RDVk4wYjJOcmFHOXNiVEVVTUJJR0ExVUVZUk1MTlRVNU1URXdMVFE0TURZeEhUQWJCZ05WQkFvVEZGWmxjbWx6WldNZ1JuSmxhbUVnWlVsRUlFRkNNUTB3Q3dZRFZRUUxFd1JVWlhOME1SVXdFd1lEVlFRREV3eFBRMU5RSUZOcFoyNXBibWN3Z2dFaU1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRRDFURnZlMFFoelFHaWpEWEw2NjJweFg1RWMvUnA3bWNSdzdBTGc4b2wwZzB3MGxpb0pPa2dQend3U0RmeHdpM2NwRkdrWmNVR0JrbHQvdVFrbmc5MUxPWDFOejhBY2NxU3QyWERMeCtpZ0lDeDR3RmgvSEhDNzI3NTBMVFZoRDNnakRpa2ZuOVpockJ4bVVmb0pFaHBLSGV4VTh0cXFOazRIdFhobU5KZEk1RXlxcmMyYk0zV1pMRnEvMVR6aXJMcUd0LzRyRUw2ZFh0OHk3YU1qbGh6dUpTZVlyNXRxUEFUYXEwUkNYbE9HRTZHbVJvVEZFbU5TQ2MrZUFmM1pNQ0dPT2xPSWNsQmRuNnhTOE96THdqQnhpb1B3bDZUQWdaeVZMd0dyTkJHdGl4eXhJZU5pQjducVU1NkxQR21RV3V6ckYyYUUwTHJBazN4WmNDYlVvSU5GQWdNQkFBR2pnWW93Z1ljd0RnWURWUjBQQVFIL0JBUURBZ2JBTUF3R0ExVWRFd0VCL3dRQ01BQXdId1lEVlIwakJCZ3dGb0FVYW55S0Q1MXdEaHphWHkyZ1BDWmZpT2dWdjV3d0VnWURWUjBnQkFzd0NUQUhCZ1VxQXdRRkNqQWRCZ05WSFE0RUZnUVVzdGRIaTZkY3JCKzJkTFZrWldBckp1VHlYOUl3RXdZRFZSMGxCQXd3Q2dZSUt3WUJCUVVIQXdrd0RRWUpLb1pJaHZjTkFRRUxCUUFEZ2dFQkFKTDVqRXBBdzhRV0NkaDdrVHRIZE5pZXJUQnIxd3VCL1h3UUNENUpJOFlCQ1JuZzc0d21Td0gySUx4bnN5dnhJc1NCWjhDZDJiUWxuNGN0N3JUSlhMTElkQWxLQmxydDBCbTIxdmVMRGZTNnBSY3UwSk0yNVdyOUw3a3RKNGt1Uk1SdE1IcFNLTHByUEM3OC9ON0pTYUJVMlhQc2JUdFIxTzZCTktXekI2eW5oL0taU2VPVXlHRmZGeTVWNCttcXNPSmk4ano5QytxaXRyMUhNdzhyeHp6eGEzT3dENzNPRzJhL0J5S1JtdjZoZDVtRitlNlZhWjlJV1VXM3hKUEtVVXV4ZE1HbzJXOG5jaEpOZUJaMCt1eXdtcVpJY2E0ekgrVytucEFYVHZsRDBqUUU0QURMUENjK1E5Tll0TFNrajd2TGJEVWx4Q0FvUDFxVVpWdm93aEE9In0sInVzZXJJbmZvVHlwZSI6IkVNQUlMIiwidXNlckluZm8iOiJhcnZlZ0BrdGguc2UifQ.XA7stV8-giIPIDnlUe9shCch7aYniCrRnWzzqT0mgdmuBvFCD9Al2V4H9IaR4jotgKfOlr-PtF7w0iqeZJ82fvOJcSS01aY2KAYPBbAP8ynTojp4-iobJxmA7hDWFcmcO0lFw0KmxeFZbTY2gePBm2jTOJWUF8TELSpH_UadwFQ3fQvsgM6z1hCwKaLYowh7_CYW3rHAddIMD9bOBsPUxqmvfpe-WToh-82xmSoesK8YukQK9Tp3H4f3HmzxvXfAr2B1yBUnViz7xKjUo4Kw1634jCeLPZpuVOWDWjoZpkbboso2SXpMt_ICPni6QvpaEqHfRqlItM6Bz-wxu0GbiQ";
+}
+
 </script>
 {% endblock %}

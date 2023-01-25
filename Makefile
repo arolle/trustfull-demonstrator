@@ -1,3 +1,5 @@
+.PHONY: default
+default: demo
 
 .PHONY: run_auth run_mixnet run_webserver demo
 run_auth:

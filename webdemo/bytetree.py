@@ -35,6 +35,11 @@ class ByteTree:
     def is_leaf(self) -> bool:
         return self.type == ByteTree.LEAF
 
+    def dest_node(self) -> ["ByteTree"]:
+        if not self.is_node:
+            return []
+        return self.value
+
     @classmethod
     def from_byte_array(cls, source: ByteString) -> "ByteTree":
         """

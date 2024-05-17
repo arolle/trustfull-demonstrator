@@ -243,8 +243,8 @@ to conduct and election.
 ### Setup
 1. Install python dependencies
     ```sh
-    python -m venv webapp
-    source webapp/bin/activate
+    python -m venv env
+    source env/bin/activate
     # afterwards deactivate python environment with command: deactivate
     pip install -r requirements.txt
     ```

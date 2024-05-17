@@ -15,6 +15,7 @@ clean:
 	rm -rf demoElection/* data.txt signatures.txt
 
 demo:
+	@echo "ensure to run: source env/bin/activate"
 	env PS1="> " tmux \
 		new-session -s "demo_unverif" \
 			"make clean; make run_mixnet" \; \

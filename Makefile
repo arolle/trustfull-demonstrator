@@ -16,7 +16,7 @@ clean:
 
 demo:
 	env PS1="> " tmux \
-		new-session -s "demo" \
+		new-session -s "demo_unverif" \
 			"make clean; make run_mixnet" \; \
 		split-window "make run_webserver" \; \
 		split-window "make run_auth" \; \

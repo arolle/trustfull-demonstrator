@@ -67,10 +67,10 @@
             {% if signature %} <details open> {% else %} <details> {% endif %}
             <summary><h2>3. Submit vote</h2></summary>
             <input id="signature" type="hidden" value="{{ signature }}" />
-            <form action="http://127.0.0.1:7878" method="POST" onsubmit="setBallot()">
 <!--
-            <form action="/vote_submission" method="POST" onsubmit="setBallot()">
+            <form action="http://127.0.0.1:7878" method="POST" onsubmit="setBallot()">
 -->
+            <form action="/vote_submission" method="POST" onsubmit="setBallot()">
               {% if signature %} {% else %} <p>sign the vote first</p> {% endif %}
               <input type="hidden" name="csrf_token" value="{{ csrf_token_str }}" />
               <p class="card-text">{{ hash }}</p>

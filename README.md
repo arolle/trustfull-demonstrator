@@ -241,8 +241,15 @@ We follow the steps written in [Verificatum manual page 21](https://www.verifica
 to conduct and election.
 
 ### Setup
-1. Create folder `demoElection` at the root of the project.
-2. We have two http servers - auth server and unverified backend. We need to start
+1. Install python dependencies
+    ```sh
+    python -m venv webapp
+    source webapp/bin/activate
+    # afterwards deactivate python environment with command: deactivate
+    pip install -r requirements.txt
+    ```
+2. Create folder `demoElection` at the root of the project.
+3. We have two http servers - auth server and unverified backend. We need to start
   both of them with gunicorn. Run the following command in separate shells.
   1. ```sh
      gunicorn auth.frejaeid.app:app > /tmp/gunicorn.mylogs -b 127.0.0.1:8001
@@ -251,7 +258,7 @@ to conduct and election.
      export AUTH_SERVER_URL=http://127.0.0.1:8001 # URL to auth server
      gunicorn webdemo.app:app > /tmp/gunicorn.mylog
      ```
-3. Since auth server needs client and server certificate to interact with FrejaEID,
+4. Since auth server needs client and server certificate to interact with FrejaEID,
    make sure there are three files inside `auth/frejaeid/static`.
    1. `freja.crt`: Server SSL certifcate of FrejaEID. Can be downloaded from [here](https://frejaeid.atlassian.net/wiki/spaces/DOC/pages/2162826/REST+API+Documentation).
    2. `kth_client.crt` and `kth_client.key`: Client SSL certificate. Extracted from `kth.pfx`. Contact @monperrus/@algomaster99 to obtain if cannot be found.

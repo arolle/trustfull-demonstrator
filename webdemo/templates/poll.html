@@ -20,16 +20,26 @@
             {% if messages %}
               <ul>
               {% for category, message in messages %}
-                <li class="alert alert-danger">{{ category }}: {{ message }}</li>
+              <li class="alert alert-danger">
+                {{ category }}: {{ message }}
+              </li>
               {% endfor %}
               </ul>
             {% endif %}
             {% endwith %}
-            <h1>Electronig Voting in three steps</h1>
-            {% if not hash and not signature %} <details open> {% else %} <details> {% endif %}
-            <summary><h2>1. Cast vote and request signing</h2></summary>
+
+            <h1>Electronic voting in three steps</h1>
+            {% if not hash and not signature %}
+              <details open>
+            {% else %}
+              <details>
+            {% endif %}
+
+            <summary>
+              <h2>1. Cast vote and request signing</h2>
+            </summary>
             <form action="/" method="POST" onsubmit="return captureForm()">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token_str }}" />
+              <input type="hidden" name="csrf_token" value="{{ csrf_token_str }}" />
                 <!--
                 <h2 class="card-title">{{ data.question }}</h2>
                 -->
@@ -44,10 +54,15 @@
                         </div>
                     </li>
                     {% endfor %}
-                    <input required type="email" class="form-control" name="email-for-signing" id="email-for-signing" placeholder="Enter email">
+                    <input required type="email"
+			   class="form-control"
+			   name="email-for-signing"
+			   id="email-for-signing"
+			   placeholder="Enter email">
                 </ul>
                 <div class="card-body">
-                    <button type="submit" class="btn btn-primary">Cast vote and request signing</button>
+                  <button type="submit"
+			  class="btn btn-primary">Cast vote and request signing</button>
                 </div>
             </form>
             </details>
@@ -87,7 +102,14 @@
         <div class="card-footer text-primary">
             {{ stats.nvotes }} vote{{ '' if stats.nvotes == 1 else 's' }} so far
             <a href="/results" class="btn btn-secondary">Results</a>
-            <a href="#" class="btn btn-secondary" onclick="setOfflineVote()" data-toggle="tooltip" data-placement="top" title="Cast a vote when FrejaEID is offline">JS: set offline vote</a>
+            <a href="#"
+	       class="btn btn-secondary"
+	       onclick="setOfflineVote()"
+	       data-toggle="tooltip"
+	       data-placement="top"
+	       title="Cast a vote when FrejaEID is offline">
+	      JS: set offline vote
+	    </a>
             <a href="/ciphertexts" class="btn btn-secondary">Ciphertexts</a>
             <a href="/publicKey" class="btn btn-secondary">Public Key</a>
         </div>
@@ -95,20 +117,35 @@
     <div class="card">
         <div class="card-body">
             <h2 class="card-title">About</h2>
-            <p class="card-text"> Demo election web interface using the <a
-                    href="https://github.com/kth-tcs/verificatum-vjsc/">Verificatum JavaScript Cryptographic
-                    library</a> for client-side encryption.</p>
-            <p class="card-text">Encryption must be done with a provided public key which is produced by the <a
-                    href="https://www.verificatum.org/">Verificatum</a> mix network.</p>
-            <p class="card-text">When the &quot;submit&quot; button is pressed, the form&#39;s data is modified
-                and the
-                currently selected option is encrypted using the public key and some randomness. The web
-                server is then unable to decrypt the vote. Instead, the mix network that produced the public
-                key must jointly decrypt and shuffle the collected votes.</p>
-            <p class="card-text"><strong>WARNING</strong> this is only for demonstration purposes. Important
-                safety features are missing. For example, no measures are taken to counter
-                <em>malleability</em> attacks. For more details, please read the documentation at the official
-                Verificatum <a href="https://www.verificatum.org/">webpage</a>.</p>
+            <p class="card-text">
+	      Demo election web interface using the
+	      <a href="https://github.com/verificatum/">Verificatum
+            Typescript Cryptographic library</a> for
+              client-side encryption.
+	    </p>
+            <p class="card-text">
+	      Encryption must be done with a provided public key which
+	      is produced by the
+	      <a href="https://www.verificatum.org/">Verificatum</a>
+	      mix network.
+	    </p>
+            <p class="card-text">
+	      When the &quot;submit&quot; button is pressed, the
+              form&#39;s data is modified and the currently selected
+              option is encrypted using the public key and some
+              randomness. The web server is then unable to decrypt the
+              vote. Instead, the mix network that produced the public
+              key must jointly decrypt and shuffle the collected
+              votes.
+	    </p>
+            <p class="card-text">
+	      <strong>WARNING</strong> this is only for demonstration
+              purposes. Important safety features are missing. For
+              example, no measures are taken to counter
+              <em>malleability</em> attacks. For more details, please
+              read the documentation at the official
+              Verificatum <a href="https://www.verificatum.org/">webpage</a>.
+	    </p>
         </div>
         <div class="card-footer text-muted">
             Made for the <a href="https://www.trustfull.proj.kth.se/">Trustfull project</a>
@@ -122,115 +159,205 @@
 <script>
     window.WASM_PATH = "{{url_for('static', filename='muladd.wasm')}}"
 </script>
-<script src="{{url_for('static', filename='min-vjsc-1.1.1.js')}}"></script>
-<script>
+
+<!--
+<script src="{{url_for('static', filename='min-vjsc-1.1.1.js')}}">
+</script>
+-->
+
+<script type="module">
+    import { verificatum as verificatum2 }
+        from "{{url_for('static', filename='vts-bamecr-d-1.2.0-p30.js')}}";
+
+    const byteArrayToHex =
+          verificatum2.base.byteArrayToHex;
+    const WebAPIElGamalZKPoKClient =
+          verificatum2.dom.WebAPIElGamalZKPoKClient;
+
+    // We pass an URL to a script to allow a webworker to pre-compute
+    // in the background.
+    let root = window.location.href;
+    root = root.slice(0, root.lastIndexOf("/"));
+    const script =
+          "{{url_for('static', filename='vts-bamecr-d-1.2.0-p30w.js')}}"
+
     // Hide success alert window
     setTimeout(function() {
         window.success.className += ' hidden';
     }, 1000);
 
-    // This version does not export hexbyte and byteArrayToHex
-    // source Verificatum-TS
-    function hexbyte(b) {
-        const digits = "0123456789abcdef";
-        return digits[b >> 4 & 0xF] + digits[b & 0xF];
-    }
-    function byteArrayToHex(bytes) {
-        let hexString = "";
-        for (i = 0; i < bytes.length; i++) {
-            hexString += hexbyte(bytes[i]);
-        }
-        return hexString;
-    }
+    // Label for Naor-Yung encryption. This is ignored, since we strip
+    // down the ciphertext to an El Gamal ciphertext.
+    const demo_label = [0];
 
-    function captureForm() {
+    // Public key as a byte array.
+    const mpk = {{data.publicKey}};
+
+    const client = new WebAPIElGamalZKPoKClient(mpk, root, script);
+    client.precompute();
+
+    // Returns the chosen candidate or null if an invalid or no
+    // candidate has been chosen.
+    function getCandidate() {
         for (const candidate of document.getElementsByClassName('candidate')) {
             if (candidate.checked) {
-              console.log("entered captureForm");
+
+		console.log("entered getCandidate()");
+
                 var found = false;
                 {% for e in data.fields %}
                 found |= candidate.value === "{{ e }}";
                 {% endfor %}
-                if (!found) {
-                    console.error("Candidate does not match any expected value");
-                    return false;
+                if (found) {
+		    return candidate.value;
+		} else {
+                    console.error("Unexpected candidate value!");
+                    return null;
                 }
-
-/*
-                Future version API
-                // hash : uint8_t[]
-                // sha256 : uint8_t[] -> uint8_t[]
-                const sha256 = new verificatum.crypto.SHA256();
-                const hash = sha256.hash(enc_vote);
-*/
-
-                const enc_vote = encrypt(candidate.value);
-                const enc_vote_ba = enc_vote.toByteArray();
-                const hash = verificatum.crypto.sha256.hash(enc_vote_ba)
-                console.log("setting enc vote (hash): " + byteArrayToHex(hash));
-                document.getElementById(candidate.value).value = byteArrayToHex(hash);
-
-                const enc_vote_hex_str = byteArrayToHex(enc_vote.toByteArray());
-                localStorage.setItem("enc_vote", enc_vote_hex_str);
-                console.log("localStorage.enc_vote (hex): " + enc_vote_hex_str);
-
-                return true;
-            }
-        }
-
+	    }
+	}
         console.error('No candidate selected');
-        return false;
+        return null;
     }
 
-    function encrypt(s) {
-        function initRandomSource() {
-            const randomSource = new verificatum.crypto.RandomDevice();
-            const seed = randomSource.getBytes(verificatum.crypto.SHA256PRG.seedLength);
-            const ret = new verificatum.crypto.SHA256PRG();
-            ret.setSeed(seed);
-            return ret;
-        }
+    function initRandomSource() {
+	const randomSource = new verificatum.crypto.RandomDevice();
+        const seed =
+	      randomSource.getBytes(verificatum.crypto.SHA256PRG.seedLength);
+        const prg = new verificatum.crypto.SHA256PRG();
+        prg.setSeed(seed);
+        return prg;
+    }
+
+    // Returns an encryption of the input plaintext bytes.
+    function encrypt(plaintextBytes) {
+
+	console.log("entered encrypt()");
 
         const randomSource = initRandomSource();
         const WIDTH = 1;  // Depends on vmni configuration
 
-        const bt = verificatum.eio.ByteTree.readByteTreeFromByteArray({{data.publicKey}});
+        const bt =
+        verificatum.eio.ByteTree.readByteTreeFromByteArray({{data.publicKey}});
 
         console.assert(verificatum.util.byteArrayToAscii(bt.value[0].value[0].value).endsWith('ECqPGroup'));
-        const keyPGroup = verificatum.arithm.ECqPGroup.fromByteTree(bt.value[0].value[1]);
-        const fullPublicKey = new verificatum.arithm.PPGroup(keyPGroup, 2).toElement(bt.value[1]);
-        const eg = new verificatum.crypto.ElGamal(true, keyPGroup, randomSource, 20);
+        const keyPGroup =
+              verificatum.arithm.ECqPGroup.fromByteTree(bt.value[0].value[1]);
+        const fullPublicKey =
+              new verificatum.arithm.PPGroup(keyPGroup, 2).toElement(bt.value[1]);
+        const eg =
+              new verificatum.crypto.ElGamal(true, keyPGroup, randomSource, 20);
         const wpk = eg.widePublicKey(fullPublicKey, WIDTH);
 
-        // Encode message
-        const ascii_bytes = s.split('').map(x => x.charCodeAt(0));
-        const encoded = wpk.pGroup.project(1).encode(ascii_bytes);
+        // Encode plaintext byte array as a group element.
+        const encoded = wpk.pGroup.project(1).encode(plaintextBytes);
         const encrypted = eg.encrypt(wpk, encoded);
 
-        // XXX: why?
-        // In format expected by VMN
-        const encrypted0 = encrypted.values[0].toByteTree();
-        const encrypted1 = encrypted.values[1].toByteTree();
-
-        const ByteTree = verificatum.eio.ByteTree;
-        const enc_vote_bt = new ByteTree([encrypted0,encrypted1]);
-        return enc_vote_bt;
-        // return JSON.stringify([encrypted0, encrypted1]);
+	// Return encryption as a byte array encoding of a byte tree.
+	return encrypted.toByteTree().toByteArray();
     }
 
-  function setBallot() {
-    const enc_vote = localStorage.getItem('enc_vote');
-    const signature = document.getElementById('signature').value;
-    if (!enc_vote || !signature) {
-      return false;
+    // Returns a promise of an encryption of the input plaintext bytes.
+    function new_encrypt(plaintextBytes) {
+
+	console.log("entered new_encrypt()");
+
+        const readByteTreeFromByteArray =
+              verificatum2.algebra.ByteTree.readByteTreeFromByteArray;
+
+        // Encrypt plaintext byte array to a ciphertext byte array.
+        // encryption with old VJSC javascript library
+        // const ciphertextByteArray_old = encrypt(plaintextBytes);
+        return client.encrypt(demo_label, plaintextBytes, false)
+            .then( ([c, d, s]) => {
+
+                // We drop the ZKPoK from the Naor-Yung cryptotext and
+                // get only the El Gamal ciphertext encoded as a byte
+                // array.
+                const bt = verificatum2.algebra.ByteTree.readByteTreeFromByteArray(c);
+                const ciphertextByteArray = bt.value[0].toByteArray();
+                // comparison with old VJSC javascript library
+                // if (ciphertextByteArray_old.length != ciphertextByteArray.length) {
+                //   console.log("ciphertextByteArray differ");
+                //   console.log("ciphertextByteArray.length " + ciphertextByteArray.length);
+                //   console.log("ciphertextByteArray_old.length " + ciphertextByteArray_old.length);
+                // }
+                return ciphertextByteArray;
+            });
     }
-    console.log({"vote": enc_vote, "signature": signature });
-    document.getElementById('ballot').value = JSON.stringify({"vote": enc_vote, "signature": signature });
-    return true;
+
+  function setCiphertextAndHashdigest(ciphertextByteArray,plaintextString){
+
+	  // Compute hash digest of ciphertext byte array.
+	  const hashDigest =
+		verificatum.crypto.sha256.hash(ciphertextByteArray);
+		console.log("hashDigest.length = " + hashDigest.length);
+
+	  // Convert byte arrays to hexadecimal strings.
+	  const hexCiphertextByteArray = byteArrayToHex(ciphertextByteArray);
+	  const hexHashDigest = byteArrayToHex(hashDigest);
+		console.log("hexHashDigest = " + hexHashDigest);
+
+	  // Store hexadecimal ciphertext.
+	  console.log("localStorage.hexCiphertextByteArray = " +
+		      hexCiphertextByteArray);
+	  localStorage.setItem("hexCiphertextByteArray",
+			       hexCiphertextByteArray);
+
+	  // Store hexadecimal hash digest.
+	  console.log("setting enc vote (hashDigest): " + hexHashDigest);
+	  document.getElementById(plaintextString).value = hexHashDigest;
+  }
+
+  window.captureForm = function() {
+
+      console.log("entered captureForm()");
+
+      // Read candidate from GUI.
+      const plaintextString = getCandidate();
+      if (plaintextString == null) {
+          return false;
+      } else  {
+          // Encode plaintext as a byte array.
+          const plaintextBytes =
+          verificatum2.base.asciiToByteArray(plaintextString);
+
+          return new_encrypt(plaintextBytes).then( (ciphertextByteArray) => {
+              setCiphertextAndHashdigest(ciphertextByteArray,plaintextString);
+              return true;
+          });
+      }
+  }
+
+  window.setBallot = function() {
+
+      console.log("entered setBallot()");
+
+      // Retrieve stored hexadecimal encoded byte array ciphertext.
+      const hexCiphertextByteArray =
+	    localStorage.getItem('hexCiphertextByteArray');
+
+      // Retrieve stored hexadecimal encoded signature.
+      const signature = document.getElementById('signature').value;
+
+      // If both are available, then form a ballot.
+      if (hexCiphertextByteArray && signature) {
+
+	  const ciphertextSignatureMap =
+		{"vote": hexCiphertextByteArray, "signature": signature }
+
+	  console.log("ciphertextSignatureMap: " + ciphertextSignatureMap);
+	  document.getElementById('ballot').value =
+	      JSON.stringify(ciphertextSignatureMap);
+
+	  return true;
+      } else {
+	  return false;
+      }
   }
 
 function setOfflineVote() {
-  localStorage.setItem('enc_vote',"000000000200000000020100000021004582f66416a80946526186470c12784a34a9eae8b12df74d7b60f89c2087b7c501000000210047d031d945b4609017a83d569b661cc651a863c88631b2f3038a24a1da61240800000000020100000021000ad727ceb7dc79469a6c43f4ecc9ba85b712acde58cd06b7df568717ef2bb0ff010000002100849391d58bd9707011776836eb2e63819aed978b0cb54e1e3ca76889ad2a09ed");
+  localStorage.setItem('hexCiphertextByteArray',"000000000200000000020100000021004582f66416a80946526186470c12784a34a9eae8b12df74d7b60f89c2087b7c501000000210047d031d945b4609017a83d569b661cc651a863c88631b2f3038a24a1da61240800000000020100000021000ad727ceb7dc79469a6c43f4ecc9ba85b712acde58cd06b7df568717ef2bb0ff010000002100849391d58bd9707011776836eb2e63819aed978b0cb54e1e3ca76889ad2a09ed");
   document.getElementById('signature').value = "eyJ4NXQiOiJEaVpiekJmeXNVbTYtSXdJLUd0aWVuRXNiamMiLCJhbGciOiJSUzI1NiJ9.eyJzaWduUmVmIjoibGxpYzd0X1lBRFc2ZWdfZXBxYnU4VDA3OFpWWU41amZWX19vOEgxakNYbElCRHMyaXR5c3hMaUpuMFNKY01pWSIsInN0YXR1cyI6IkFQUFJPVkVEIiwidGltZXN0YW1wIjoxNjk1OTAwODk4NzQzLCJtaW5SZWdpc3RyYXRpb25MZXZlbCI6IkJBU0lDIiwic2lnbmF0dXJlVHlwZSI6IlNJTVBMRSIsInNpZ25hdHVyZURhdGEiOnsidXNlclNpZ25hdHVyZSI6ImV5SnJhV1FpT2lKQ1JEQkJOa1pFUmtReU9VVXhPRUkyTVRCQlJFWXpOakkyTVRsRk5qQTFOVVE1TlVGRlFVSTNSRFkwT1RFME5VUkVPVGs1UmpCRlFUUTNPVGswUVRkR0lpd2lZV3huSWpvaVVsTXlOVFlpZlEuT0RSaVl5QmxObVEwSURBNU5qY2dNelF3TmlCallUZGxJRFJrWkRFZ016Y3dZeUE0WXpJMklHVXdaV1VnTXpZeE5TQTJPVGc0SURSaE9HSWdNbVUzTUNBMll6QmhJREl4TkdVZ1pEWXhOdy5teTRkaWVVaEV6bGNzbkplYmx5RWVDZUdXVUVGUzJMUlBSTlpid1c3N1I1eEU2NmtNWm8xWXdHZldTeGlzSlNWZFhneU84aU5RQVh1dEhYX1F4ai01eHFhY3J6NU5Bd05UWm5wcHB4emJweTFrNHlNR0RnZFdjNW1DM3R5elhMOWVqR1hUck5KTW5XeXczc3JFeGhaT1JrMm1HWXdFeDlmcXo4T2NNbkRQZGVyOERDTk9UNXU0R08zUVVMOEtUTjFVTTRVWVhud1hBR2lsQ0NFUjRjVHhVWmxCSUJDd24xWGhzSHFJcHhxazBvZzU5TU0yYUxtdGdZdUR2djhESUQ5ZUpveWpLQjBMVjJWMzRXWUZtX0VKN21kSDRPbEJRbTgtMm1QN3NaYmswNnZ4bGNaTUhXNU1EWk1MRDNNWmw5VVpkMmRoVk1DY2pOOFYwMDBtTExHTmciLCJjZXJ0aWZpY2F0ZVN0YXR1cyI6Ik1JSUdYZ29CQUtDQ0JsY3dnZ1pUQmdrckJnRUZCUWN3QVFFRWdnWkVNSUlHUURDQ0FRT2lGZ1FVMWlsK0djVkhVTDZHQUhiYklkb25BNHY4bG13WUR6SXdNak13T1RJNE1URXpORFU0V2pDQnJ6Q0JyRENCbGpBTkJnbGdoa2dCWlFNRUFnRUZBQVFnTFhzcklFa0JYYVZRbnZGby9HSXJMaFZOYVFaakhlN3lsR2NTWkV4UkU0OEVJQ2RCTG56cGc2V1U4V21SbGZHdURkTTFWcjFhWTZnM0tZZjl3SmFDT0gyeUFrRUF0NFY0WmFwa3RmSTllTGV0dGMwakdwNmNCeEdLdDJxRjhOZ000REJUcE5ZOEE2ZWZXbGlYeVhaYWdrdHlBeVhQVXhsaWlqSTBCQnRjWjRoak0ydFBRb0FBR0E4eU1ESXpNRGt5T0RFeE16UTFPRnFoSmpBa01DSUdDU3NHQVFVRkJ6QUJBZ1FWQkJNd0xqUTBOakk1TlRFeU1EVTVOall6TlRNME1BMEdDU3FHU0liM0RRRUJDd1VBQTRJQkFRRHBrTG1wOGdqL2dqeDFKWDgvOGhEU2FsaUIzWllMNXFyYmR0Rk9IWXF5UTk1MWdqWjRTWmRDcjI5QTNHTjVVWW5rSVdXaVNsL1BNQlQ3K2g5VEFLNzdGem5PNDNTZXFiR3gyakV0VGcxMmVDT3BJSTJKMHhJV2I0QVY2dU5aVE14eG5XVEwvOXNRcTdmZ243Z0xZZmYySmVEZG03dUhOVDE2T09FZFkvS1J6TjRaS1d1ZkNZNmVtWGZJSHpIWWk2eTNINGRkZjBERXZWQkVibGJsODNQcmdJU1RYc28zTGc5cWdYVmlmMmVpZ3JSd0pDN3VTeWdSQUFkVll4eE8xaUw3TGkyZ3RXaFl4TDhKYk5OQTA2SUZUOUtQaVorVFJRTGt5V25heXBUS2NKbWhtKzNIaHZ1L2pNZ1FoQUM1aEZYZXlKaDVjRkpJQzltaCtJVWVMUDh0b0lJRUlUQ0NCQjB3Z2dRWk1JSURBYUFEQWdFQ0FoUkpubTI5TElYS1hzVm9FYnhreEYxczloVTVhVEFOQmdrcWhraUc5dzBCQVFzRkFEQ0JnekVMTUFrR0ExVUVCaE1DVTBVeEVqQVFCZ05WQkFjVENWTjBiMk5yYUc5c2JURVVNQklHQTFVRVlSTUxOVFU1TVRFd0xUUTRNRFl4SFRBYkJnTlZCQW9URkZabGNtbHpaV01nUm5KbGFtRWdaVWxFSUVGQ01RMHdDd1lEVlFRTEV3UlVaWE4wTVJ3d0dnWURWUVFERXhOU1UwRWdWRVZUVkNCSmMzTjFhVzVuSUVOQk1CNFhEVEl3TVRJd09ERXpNVFV4TWxvWERUSXpNVEl3T0RFek1UVXhNbG93ZkRFTE1Ba0dBMVVFQmhNQ1UwVXhFakFRQmdOVkJBY1RDVk4wYjJOcmFHOXNiVEVVTUJJR0ExVUVZUk1MTlRVNU1URXdMVFE0TURZeEhUQWJCZ05WQkFvVEZGWmxjbWx6WldNZ1JuSmxhbUVnWlVsRUlFRkNNUTB3Q3dZRFZRUUxFd1JVWlhOME1SVXdFd1lEVlFRREV3eFBRMU5RSUZOcFoyNXBibWN3Z2dFaU1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRRDFURnZlMFFoelFHaWpEWEw2NjJweFg1RWMvUnA3bWNSdzdBTGc4b2wwZzB3MGxpb0pPa2dQend3U0RmeHdpM2NwRkdrWmNVR0JrbHQvdVFrbmc5MUxPWDFOejhBY2NxU3QyWERMeCtpZ0lDeDR3RmgvSEhDNzI3NTBMVFZoRDNnakRpa2ZuOVpockJ4bVVmb0pFaHBLSGV4VTh0cXFOazRIdFhobU5KZEk1RXlxcmMyYk0zV1pMRnEvMVR6aXJMcUd0LzRyRUw2ZFh0OHk3YU1qbGh6dUpTZVlyNXRxUEFUYXEwUkNYbE9HRTZHbVJvVEZFbU5TQ2MrZUFmM1pNQ0dPT2xPSWNsQmRuNnhTOE96THdqQnhpb1B3bDZUQWdaeVZMd0dyTkJHdGl4eXhJZU5pQjducVU1NkxQR21RV3V6ckYyYUUwTHJBazN4WmNDYlVvSU5GQWdNQkFBR2pnWW93Z1ljd0RnWURWUjBQQVFIL0JBUURBZ2JBTUF3R0ExVWRFd0VCL3dRQ01BQXdId1lEVlIwakJCZ3dGb0FVYW55S0Q1MXdEaHphWHkyZ1BDWmZpT2dWdjV3d0VnWURWUjBnQkFzd0NUQUhCZ1VxQXdRRkNqQWRCZ05WSFE0RUZnUVVzdGRIaTZkY3JCKzJkTFZrWldBckp1VHlYOUl3RXdZRFZSMGxCQXd3Q2dZSUt3WUJCUVVIQXdrd0RRWUpLb1pJaHZjTkFRRUxCUUFEZ2dFQkFKTDVqRXBBdzhRV0NkaDdrVHRIZE5pZXJUQnIxd3VCL1h3UUNENUpJOFlCQ1JuZzc0d21Td0gySUx4bnN5dnhJc1NCWjhDZDJiUWxuNGN0N3JUSlhMTElkQWxLQmxydDBCbTIxdmVMRGZTNnBSY3UwSk0yNVdyOUw3a3RKNGt1Uk1SdE1IcFNLTHByUEM3OC9ON0pTYUJVMlhQc2JUdFIxTzZCTktXekI2eW5oL0taU2VPVXlHRmZGeTVWNCttcXNPSmk4ano5QytxaXRyMUhNdzhyeHp6eGEzT3dENzNPRzJhL0J5S1JtdjZoZDVtRitlNlZhWjlJV1VXM3hKUEtVVXV4ZE1HbzJXOG5jaEpOZUJaMCt1eXdtcVpJY2E0ekgrVytucEFYVHZsRDBqUUU0QURMUENjK1E5Tll0TFNrajd2TGJEVWx4Q0FvUDFxVVpWdm93aEE9In0sInVzZXJJbmZvVHlwZSI6IkVNQUlMIiwidXNlckluZm8iOiJhcnZlZ0BrdGguc2UifQ.XA7stV8-giIPIDnlUe9shCch7aYniCrRnWzzqT0mgdmuBvFCD9Al2V4H9IaR4jotgKfOlr-PtF7w0iqeZJ82fvOJcSS01aY2KAYPBbAP8ynTojp4-iobJxmA7hDWFcmcO0lFw0KmxeFZbTY2gePBm2jTOJWUF8TELSpH_UadwFQ3fQvsgM6z1hCwKaLYowh7_CYW3rHAddIMD9bOBsPUxqmvfpe-WToh-82xmSoesK8YukQK9Tp3H4f3HmzxvXfAr2B1yBUnViz7xKjUo4Kw1634jCeLPZpuVOWDWjoZpkbboso2SXpMt_ICPni6QvpaEqHfRqlItM6Bz-wxu0GbiQ";
 }
 
